@@ -1,0 +1,41 @@
+4.26
+
+1st Step (Installation):
+Initialize your node application and install all necessary dependencies.
+
+
+in package.json use "type": "module"
+to import express as module not as const express = require("express");
+
+2nd Step (Setup Environment Variables):
+Create a folder config. Then create a new file config.env in it. Then paste all these variables in your config.env file.
+
+
+why we use use() method?
+why we export file as default?,  like export default app;
+
+3rd Step (Create & Setup app.js and server.js Files)
+
+create an account on cloudinary and generate a cloudinary, name, api key and secret key
+
+
+4th Step (Setup Database)
+Create a folder database. Then create a file in this folder db.js and setup your database. 
+and connect to it
+and create tables in modules
+
+
+5th Step (Initialize Your Tables)
+Create a new folder utils. Then create a new file createTables.js and create a function for tables creation.
+
+
+6th Step (Middlewares)
+Create a new file errorMiddlewares.js for error handling.
+Create a new file catchAsyncError.js for handling asynchronous functions.
+
+
+create folder name controller setup require Files
+
+what is sql injection 
+const user = await database.query(`INSERT INTO users (name, email, password) VALUES ( ${name}, ${email}. ${password}) RETURNING *`);
+[name, email, hashedPassword]
