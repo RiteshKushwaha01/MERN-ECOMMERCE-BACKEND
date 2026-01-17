@@ -59,6 +59,38 @@
 
 // export default database
 
+// import { config } from 'dotenv'
+// import { neon } from '@neondatabase/serverless'
+
+// config()
+
+// if (!process.env.DATABASE_URL) {
+//   throw new Error('DATABASE_URL is missing')
+// }
+
+// const sql = neon(process.env.DATABASE_URL)
+
+// const database = {
+//   query: async (text, params = []) => {
+//     try {
+//       const result = await sql.query(text, params)
+
+//       // 🔒 ALWAYS return pg-style object
+//       return {
+//         rows: Array.isArray(result?.rows) ? result.rows : [],
+//       }
+//     } catch (error) {
+//       console.error('Database query error:', error)
+//       throw error
+//     }
+//   },
+// }
+
+// console.log('Neon database client initialized')
+
+// export default database
+
+
 import { config } from 'dotenv'
 import { neon } from '@neondatabase/serverless'
 
