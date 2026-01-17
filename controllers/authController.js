@@ -324,14 +324,13 @@ export const register = catchAsyncErrors(async (req, res, next) => {
 
   const normalizedEmail = email.trim().toLowerCase()
 
+  // Check existing user
   const checkResult = await database.query(
     'SELECT id FROM users WHERE LOWER(email) = $1',
     [normalizedEmail],
   )
 
-  const existingUsers = checkResult.rows || []
-
-  if (existingUsers.length > 0) {
+  if ((checkResult.rows || []).length > 0) {
     return next(
       new ErrorHandler('User already registered with this email.', 400),
     )
@@ -339,12 +338,19 @@ export const register = catchAsyncErrors(async (req, res, next) => {
 
   const hashedPassword = await bcrypt.hash(password, 10)
 
-  const insertResult = await database.query(
-    'INSERT INTO users (name, email, password) VALUES ($1, $2, $3) RETURNING *',
+  // Insert user (do NOT validate by rows length)
+  await database.query(
+    'INSERT INTO users (name, email, password) VALUES ($1, $2, $3)',
     [name.trim(), normalizedEmail, hashedPassword],
   )
 
-  const users = insertResult.rows || []
+  // 🔑 Fetch user explicitly (Neon-safe)
+  const userResult = await database.query(
+    'SELECT * FROM users WHERE LOWER(email) = $1',
+    [normalizedEmail],
+  )
+
+  const users = userResult.rows || []
 
   if (users.length === 0) {
     return next(new ErrorHandler('User registration failed.', 500))
