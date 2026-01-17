@@ -28,8 +28,6 @@
 
 // export default database
 
-
-
 // import { config } from 'dotenv'
 // import { neon } from '@neondatabase/serverless'
 
@@ -61,30 +59,29 @@
 
 // export default database
 
-
-
 import { config } from 'dotenv'
 import { neon } from '@neondatabase/serverless'
 
 config()
 
 if (!process.env.DATABASE_URL) {
-  throw new Error('DATABASE_URL is missing in .env')
+  throw new Error('DATABASE_URL is missing')
 }
 
+// Create Neon client
 const sql = neon(process.env.DATABASE_URL)
 
 /**
- * Make Neon behave EXACTLY like pg
- * Always return { rows: [] }
+ * PG-COMPATIBLE DATABASE WRAPPER
+ * Allows: database.query("SELECT ... $1", [value])
  */
 const database = {
   query: async (text, params = []) => {
     try {
-      const result = await sql(text, params)
+      // ✅ USE sql.query (NOT sql())
+      const result = await sql.query(text, params)
 
-      // 🔑 CRITICAL FIX
-      return { rows: result }
+      return { rows: result.rows }
     } catch (error) {
       console.error('Database query error:', error)
       throw error
