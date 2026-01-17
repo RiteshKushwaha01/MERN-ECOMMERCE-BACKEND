@@ -68,20 +68,17 @@ if (!process.env.DATABASE_URL) {
   throw new Error('DATABASE_URL is missing')
 }
 
-// Create Neon client
 const sql = neon(process.env.DATABASE_URL)
 
-/**
- * PG-COMPATIBLE DATABASE WRAPPER
- * Allows: database.query("SELECT ... $1", [value])
- */
 const database = {
   query: async (text, params = []) => {
     try {
-      // ✅ USE sql.query (NOT sql())
       const result = await sql.query(text, params)
 
-      return { rows: result.rows }
+      // 🔒 ALWAYS return pg-style object
+      return {
+        rows: Array.isArray(result?.rows) ? result.rows : [],
+      }
     } catch (error) {
       console.error('Database query error:', error)
       throw error

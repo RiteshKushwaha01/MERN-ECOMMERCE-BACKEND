@@ -329,7 +329,9 @@ export const register = catchAsyncErrors(async (req, res, next) => {
     [normalizedEmail],
   )
 
-  if (checkResult.rows.length > 0) {
+  const existingUsers = checkResult.rows || []
+
+  if (existingUsers.length > 0) {
     return next(
       new ErrorHandler('User already registered with this email.', 400),
     )
@@ -342,7 +344,13 @@ export const register = catchAsyncErrors(async (req, res, next) => {
     [name.trim(), normalizedEmail, hashedPassword],
   )
 
-  sendToken(insertResult.rows[0], 201, 'User registered successfully', res)
+  const users = insertResult.rows || []
+
+  if (users.length === 0) {
+    return next(new ErrorHandler('User registration failed.', 500))
+  }
+
+  sendToken(users[0], 201, 'User registered successfully', res)
 })
 
 /* ================= LOGIN ================= */
@@ -361,11 +369,13 @@ export const login = catchAsyncErrors(async (req, res, next) => {
     [trimmedEmail],
   )
 
-  if (result.rows.length === 0) {
+  const users = result.rows || []
+
+  if (users.length === 0) {
     return next(new ErrorHandler('Invalid email or password.', 401))
   }
 
-  const user = result.rows[0]
+  const user = users[0]
 
   const isPasswordMatch = await bcrypt.compare(password, user.password)
   if (!isPasswordMatch) {
@@ -415,17 +425,22 @@ export const forgotPassword = catchAsyncErrors(async (req, res, next) => {
     email,
   ])
 
-  if (result.rows.length === 0) {
+  const users = result.rows || []
+
+  if (users.length === 0) {
     return next(new ErrorHandler('User not found with this email.', 404))
   }
 
-  const user = result.rows[0]
+  const user = users[0]
 
   const { hashedToken, resetPasswordExpireTime, resetToken } =
     generateResetPasswordToken()
 
   await database.query(
-    `UPDATE users SET reset_password_token=$1, reset_password_expire=to_timestamp($2) WHERE id=$3`,
+    `UPDATE users
+     SET reset_password_token = $1,
+         reset_password_expire = to_timestamp($2)
+     WHERE id = $3`,
     [hashedToken, resetPasswordExpireTime / 1000, user.id],
   )
 
@@ -445,7 +460,10 @@ export const forgotPassword = catchAsyncErrors(async (req, res, next) => {
     })
   } catch (error) {
     await database.query(
-      `UPDATE users SET reset_password_token=NULL, reset_password_expire=NULL WHERE id=$1`,
+      `UPDATE users
+       SET reset_password_token = NULL,
+           reset_password_expire = NULL
+       WHERE id = $1`,
       [user.id],
     )
     return next(new ErrorHandler('Email could not be sent.', 500))
@@ -461,15 +479,19 @@ export const resetPassword = catchAsyncErrors(async (req, res, next) => {
     .digest('hex')
 
   const result = await database.query(
-    'SELECT * FROM users WHERE reset_password_token=$1 AND reset_password_expire > NOW()',
+    `SELECT * FROM users
+     WHERE reset_password_token = $1
+       AND reset_password_expire > NOW()`,
     [resetPasswordToken],
   )
 
-  if (result.rows.length === 0) {
+  const users = result.rows || []
+
+  if (users.length === 0) {
     return next(new ErrorHandler('Invalid or expired reset token.', 400))
   }
 
-  const user = result.rows[0]
+  const user = users[0]
 
   if (req.body.password !== req.body.confirmPassword) {
     return next(new ErrorHandler('Passwords do not match.', 400))
@@ -478,12 +500,22 @@ export const resetPassword = catchAsyncErrors(async (req, res, next) => {
   const hashedPassword = await bcrypt.hash(req.body.password, 10)
 
   const updateResult = await database.query(
-    `UPDATE users SET password=$1, reset_password_token=NULL, reset_password_expire=NULL
-     WHERE id=$2 RETURNING *`,
+    `UPDATE users
+     SET password = $1,
+         reset_password_token = NULL,
+         reset_password_expire = NULL
+     WHERE id = $2
+     RETURNING *`,
     [hashedPassword, user.id],
   )
 
-  sendToken(updateResult.rows[0], 200, 'Password reset successfully', res)
+  const updatedUsers = updateResult.rows || []
+
+  if (updatedUsers.length === 0) {
+    return next(new ErrorHandler('Password reset failed.', 500))
+  }
+
+  sendToken(updatedUsers[0], 200, 'Password reset successfully', res)
 })
 
 /* ================= UPDATE PASSWORD ================= */
@@ -503,7 +535,7 @@ export const updatePassword = catchAsyncErrors(async (req, res, next) => {
 
   const hashedPassword = await bcrypt.hash(newPassword, 10)
 
-  await database.query('UPDATE users SET password=$1 WHERE id=$2', [
+  await database.query('UPDATE users SET password = $1 WHERE id = $2', [
     hashedPassword,
     req.user.id,
   ])
@@ -550,9 +582,15 @@ export const updateProfile = catchAsyncErrors(async (req, res, next) => {
       : [name, email, req.user.id],
   )
 
+  const users = result.rows || []
+
+  if (users.length === 0) {
+    return next(new ErrorHandler('Profile update failed.', 500))
+  }
+
   res.status(200).json({
     success: true,
     message: 'Profile updated successfully.',
-    user: result.rows[0],
+    user: users[0],
   })
 })
