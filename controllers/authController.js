@@ -12,36 +12,42 @@ import { v2 as cloudinary } from 'cloudinary'
 
 export const register = catchAsyncErrors(async (req, res, next) => {
   const { name, email, password } = req.body
+
   if (!name || !email || !password) {
     return next(new ErrorHandler('Please provide all required fields.', 400))
   }
 
   if (password.length < 8 || password.length > 16) {
     return next(
-      new ErrorHandler('Password must be between 8 and 16 characters.', 400)
+      new ErrorHandler('Password must be between 8 and 16 characters.', 400),
     )
   }
 
-  // Normalize email to lowercase for consistency with login
   const normalizedEmail = email.trim().toLowerCase()
 
-  const isAlreadyRegistered = await database.query(
-    `SELECT * FROM users WHERE LOWER(email) = $1`,
-    [normalizedEmail]
+  const check = await database.query(
+    'SELECT id FROM users WHERE LOWER(email) = $1',
+    [normalizedEmail],
   )
 
-  if (isAlreadyRegistered.rows.length > 0) {
+  const existingUsers = check.rows ?? check
+
+  if (existingUsers.length > 0) {
     return next(
-      new ErrorHandler('User already registered with this email.', 400)
+      new ErrorHandler('User already registered with this email.', 400),
     )
   }
 
   const hashedPassword = await bcrypt.hash(password, 10)
-  const user = await database.query(
+
+  const result = await database.query(
     'INSERT INTO users (name, email, password) VALUES ($1, $2, $3) RETURNING *',
-    [name.trim(), normalizedEmail, hashedPassword]
+    [name.trim(), normalizedEmail, hashedPassword],
   )
-  sendToken(user.rows[0], 201, 'User registered successfully', res)
+
+  const user = result.rows?.[0] ?? result[0]
+
+  sendToken(user, 201, 'User registered successfully', res)
 })
 
 export const login = catchAsyncErrors(async (req, res, next) => {
@@ -56,13 +62,13 @@ export const login = catchAsyncErrors(async (req, res, next) => {
 
   const user = await database.query(
     `SELECT * FROM users WHERE LOWER(email) = $1`,
-    [trimmedEmail]
+    [trimmedEmail],
   )
 
   if (user.rows.length === 0) {
     // Log for debugging (remove in production)
     console.log(
-      `Login attempt failed: User not found for email: ${trimmedEmail}`
+      `Login attempt failed: User not found for email: ${trimmedEmail}`,
     )
     return next(new ErrorHandler('Invalid email or password.', 401))
   }
@@ -71,7 +77,7 @@ export const login = catchAsyncErrors(async (req, res, next) => {
   if (!isPasswordMatch) {
     // Log for debugging (remove in production)
     console.log(
-      `Login attempt failed: Password mismatch for email: ${trimmedEmail}`
+      `Login attempt failed: Password mismatch for email: ${trimmedEmail}`,
     )
     return next(new ErrorHandler('Invalid email or password.', 401))
   }
@@ -114,13 +120,16 @@ export const forgotPassword = catchAsyncErrors(async (req, res, next) => {
   const baseUrl = frontendUrl || process.env.FRONTEND_URL
   if (!baseUrl) {
     return next(
-      new ErrorHandler('Frontend URL is required. Please contact support.', 500)
+      new ErrorHandler(
+        'Frontend URL is required. Please contact support.',
+        500,
+      ),
     )
   }
 
   let userResult = await database.query(
     `SELECT * FROM users WHERE email = $1`,
-    [email]
+    [email],
   )
   if (userResult.rows.length === 0) {
     return next(new ErrorHandler('User not found with this email.', 404))
@@ -131,7 +140,7 @@ export const forgotPassword = catchAsyncErrors(async (req, res, next) => {
 
   await database.query(
     `UPDATE users SET reset_password_token = $1, reset_password_expire = to_timestamp($2) WHERE email = $3`,
-    [hashedToken, resetPasswordExpireTime / 1000, email]
+    [hashedToken, resetPasswordExpireTime / 1000, email],
   )
 
   const resetPasswordUrl = `${baseUrl}/password/reset/${resetToken}`
@@ -152,7 +161,7 @@ export const forgotPassword = catchAsyncErrors(async (req, res, next) => {
     console.error('Email sending error:', error)
     await database.query(
       `UPDATE users SET reset_password_token = NULL, reset_password_expire = NULL WHERE email = $1`,
-      [email]
+      [email],
     )
     // Provide more specific error message
     const errorMessage =
@@ -170,7 +179,7 @@ export const resetPassword = catchAsyncErrors(async (req, res, next) => {
     .digest('hex')
   const user = await database.query(
     'SELECT * FROM users WHERE reset_password_token = $1 AND reset_password_expire > NOW()',
-    [resetPasswordToken]
+    [resetPasswordToken],
   )
   if (user.rows.length === 0) {
     return next(new ErrorHandler('Invalid or expired reset token.', 400))
@@ -185,14 +194,14 @@ export const resetPassword = catchAsyncErrors(async (req, res, next) => {
     req.body.confirmPassword?.length > 16
   ) {
     return next(
-      new ErrorHandler('Password must be between 8 and 16 characters.', 400)
+      new ErrorHandler('Password must be between 8 and 16 characters.', 400),
     )
   }
   const hashedPassword = await bcrypt.hash(req.body.password, 10)
 
   const updatedUser = await database.query(
     `UPDATE users SET password = $1, reset_password_token = NULL, reset_password_expire = NULL WHERE id = $2 RETURNING *`,
-    [hashedPassword, user.rows[0].id]
+    [hashedPassword, user.rows[0].id],
   )
   sendToken(updatedUser.rows[0], 200, 'Password reset successfully', res)
 })
@@ -205,7 +214,7 @@ export const updatePassword = catchAsyncErrors(async (req, res, next) => {
   }
   const isPasswordMatch = await bcrypt.compare(
     currentPassword,
-    req.user.password
+    req.user.password,
   )
   if (!isPasswordMatch) {
     return next(new ErrorHandler('Current password is incorrect.', 401))
@@ -221,7 +230,7 @@ export const updatePassword = catchAsyncErrors(async (req, res, next) => {
     confirmNewPassword.length > 16
   ) {
     return next(
-      new ErrorHandler('Password must be between 8 and 16 characters.', 400)
+      new ErrorHandler('Password must be between 8 and 16 characters.', 400),
     )
   }
 
@@ -259,7 +268,7 @@ export const updateProfile = catchAsyncErrors(async (req, res, next) => {
         folder: 'Ecommerce_Avatars',
         width: 150,
         crop: 'scale',
-      }
+      },
     )
     avatarData = {
       public_id: newProfileImage.public_id,
@@ -271,12 +280,12 @@ export const updateProfile = catchAsyncErrors(async (req, res, next) => {
   if (Object.keys(avatarData).length === 0) {
     user = await database.query(
       'UPDATE users SET name = $1, email = $2 WHERE id = $3 RETURNING *',
-      [name, email, req.user.id]
+      [name, email, req.user.id],
     )
   } else {
     user = await database.query(
       'UPDATE users SET name = $1, email = $2, avatar = $3 WHERE id = $4 RETURNING *',
-      [name, email, avatarData, req.user.id]
+      [name, email, avatarData, req.user.id],
     )
   }
 
